@@ -231,7 +231,10 @@ export default function PRDMentorDashboard() {
           <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-sm">
             <FileText size={18} />
           </div>
-          <span className="hidden sm:inline">AI PRD Mentor</span>
+          <div className="flex flex-col leading-tight">
+            <span className="hidden sm:inline">AI PRD Mentor</span>
+            <span className="hidden sm:inline text-[10px] font-medium text-slate-400">by Rakhmat Dedi G</span>
+          </div>
         </div>
 
         {/* === NAVIGASI FASE: DROPDOWN di mobile, INLINE di desktop === */}
