@@ -1,17 +1,22 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  // Memaksa penggunaan Webpack agar build di Vercel tidak kehabisan RAM
-  webpack: (config: any) => {
+import type { NextConfig } from "next";
+
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === "development",
+});
+
+const nextConfig: NextConfig = {
+  // Memaksa Webpack
+  webpack: (config) => {
     return config;
   },
   // Mengabaikan error TypeScript saat build
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Mengabaikan error ESLint saat build
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // Blok eslint SUDAH DIHAPUS dari sini
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);

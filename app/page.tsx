@@ -13,8 +13,11 @@ import {
   Calendar,
   Trash2,
   FileJson,
-  Upload, // Icon Baru
-  Save    // Icon Baru
+  Upload,
+  Save,
+  ChevronDown,
+  Menu,
+  X
 } from "lucide-react"
 import jsPDF from "jspdf"
 
@@ -41,8 +44,18 @@ function FormattedMessage({ text }: { text: string }) {
 }
 
 // --- KOMPONEN UTAMA DASHBOARD ---
+const PHASES = [
+  { id: 1, n: "Discovery", desc: "Temukan akar masalah & peluang" },
+  { id: 2, n: "Analysis", desc: "Analisis pengguna & kebutuhan" },
+  { id: 3, n: "Technical", desc: "Arsitektur & stack teknologi" },
+  { id: 4, n: "Deliver", desc: "Roadmap, risiko & peluncuran" }
+];
+
 export default function PRDMentorDashboard() {
   const [activePhase, setActivePhase] = useState(1);
+  const [phaseMenuOpen, setPhaseMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState("chat");
   const [messages, setMessages] = useState([
     { role: "ai", text: "Halo! Saya **RDG**, mentor digital Anda.\n\nSebelum kita bedah ide hebat Anda, boleh saya tahu nama Anda siapa?" }
   ]);
@@ -201,9 +214,19 @@ export default function PRDMentorDashboard() {
     link.click();
   };
 
+  const activePhaseData = PHASES.find(p => p.id === activePhase)!;
+
+  // Saat fase berubah di mobile
+  const handlePhaseChange = (id: number) => {
+    setActivePhase(id);
+    // Tidak lagi memaksa pindah ke tab chat jika sedang di tab dokumen
+    setPhaseMenuOpen(false);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <div className="flex h-screen w-full flex-col bg-slate-50 text-slate-900 overflow-hidden">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3 shrink-0 z-20 shadow-sm">
+      <header className="flex items-center justify-between border-b bg-white px-4 sm:px-6 py-3 shrink-0 z-20 shadow-sm">
         <div className="flex items-center gap-2 font-bold text-emerald-600">
           <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-sm">
             <FileText size={18} />
@@ -211,44 +234,112 @@ export default function PRDMentorDashboard() {
           <span className="hidden sm:inline">AI PRD Mentor</span>
         </div>
 
-        <div className="flex gap-4 sm:gap-6 text-[10px] sm:text-xs font-medium text-slate-400">
-          {[{ id: 1, n: "Discovery" }, { id: 2, n: "Analysis" }, { id: 3, n: "Technical" }, { id: 4, n: "Deliver" }].map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setActivePhase(p.id)}
-              className={`px-1 pb-1 transition-all ${activePhase === p.id ? "text-emerald-600 border-b-2 border-emerald-600 font-bold" : "hover:text-slate-600"}`}
-            >
-              {p.id}. {p.n}
-            </button>
-          ))}
+        {/* === NAVIGASI FASE: DROPDOWN di mobile, INLINE di desktop === */}
+        <div className="relative">
+          {/* Mobile: Dropdown fase */}
+          <button
+            onClick={() => setPhaseMenuOpen(o => !o)}
+            className="flex md:hidden items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-lg"
+          >
+            <span>{activePhaseData.id}. {activePhaseData.n}</span>
+            <ChevronDown size={14} className={`transition-transform ${phaseMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {phaseMenuOpen && (
+            <div className="absolute top-full left-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50 md:hidden">
+              {PHASES.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => handlePhaseChange(p.id)}
+                  className={`w-full text-left px-4 py-3 text-xs transition-colors ${
+                    activePhase === p.id ? 'bg-emerald-600 text-white' : 'hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <p className="font-bold">{p.id}. {p.n}</p>
+                  <p className={`text-[10px] mt-0.5 ${activePhase === p.id ? 'text-emerald-100' : 'text-slate-400'}`}>{p.desc}</p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Desktop: Inline tabs */}
+          <div className="hidden md:flex gap-4 lg:gap-6 text-[10px] lg:text-xs font-medium text-slate-400">
+            {PHASES.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setActivePhase(p.id)}
+                className={`px-1 pb-1 transition-all ${activePhase === p.id ? "text-emerald-600 border-b-2 border-emerald-600 font-bold" : "hover:text-slate-600"}`}
+              >
+                {p.id}. {p.n}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* --- AREA TOMBOL HEADER --- */}
         <div className="flex gap-2 items-center">
 
-          <Button variant="ghost" size="sm" onClick={handleReset} className="text-slate-400 hover:text-red-500 hover:bg-red-50" title="Reset Proyek">
+          {/* Tombol Reset - selalu tampil, merah */}
+          <Button variant="ghost" size="sm" onClick={handleReset} className="text-red-500 hover:text-red-600 hover:bg-red-50" title="Reset Proyek">
             <Trash2 size={16} />
           </Button>
 
-          {/* Tombol Import (Hidden Input File) */}
+          {/* ====== DESKTOP: Tombol individual ====== */}
           <input type="file" accept=".json" ref={fileInputRef} onChange={handleImportProject} className="hidden" />
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} title="Import Data (.json)" className="hidden md:flex border-slate-200 gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
             <Upload size={14} /> Import
           </Button>
-
-          {/* Tombol Backup */}
           <Button variant="outline" size="sm" onClick={handleBackupProject} title="Backup Data (.json)" className="hidden md:flex border-slate-200 gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50">
             <Save size={14} /> Backup
           </Button>
-
-          <div className="w-px h-6 bg-slate-200 hidden md:block mx-1"></div> {/* Garis Pemisah */}
-
+          <div className="w-px h-6 bg-slate-200 hidden md:block mx-1"></div>
           <Button variant="outline" size="sm" onClick={handleExportMarkdown} title="Export Markdown" className="hidden lg:flex border-slate-200 gap-1">
             <FileJson size={14} /> .MD
           </Button>
-          <Button variant="default" size="sm" onClick={handleExportPDF} className="bg-emerald-600 hover:bg-emerald-700 gap-2 shadow-sm">
-            <Download size={14} /> <span className="hidden sm:inline">Export PDF</span>
+          <Button variant="default" size="sm" onClick={handleExportPDF} className="bg-emerald-600 hover:bg-emerald-700 gap-2 shadow-sm hidden md:flex">
+            <Download size={14} /> <span>Export PDF</span>
           </Button>
+
+          {/* ====== MOBILE: Hamburger Menu ====== */}
+          <div className="relative md:hidden">
+            <button
+              onClick={() => setMobileMenuOpen(o => !o)}
+              className="flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+              title="Menu"
+            >
+              {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
+            </button>
+
+            {mobileMenuOpen && (
+              <div className="absolute top-full right-0 mt-2 w-52 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50">
+                <button
+                  onClick={() => { fileInputRef.current?.click(); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-xs text-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  <Upload size={14} /> Import Data (.json)
+                </button>
+                <button
+                  onClick={() => { handleBackupProject(); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-xs text-amber-600 hover:bg-amber-50 transition-colors"
+                >
+                  <Save size={14} /> Backup Data (.json)
+                </button>
+                <div className="border-t border-slate-100 mx-3"></div>
+                <button
+                  onClick={() => { handleExportMarkdown(); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <FileJson size={14} /> Export Markdown (.md)
+                </button>
+                <button
+                  onClick={() => { handleExportPDF(); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-xs text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+                >
+                  <Download size={14} /> Export PDF
+                </button>
+              </div>
+            )}
+          </div>
 
         </div>
       </header>
@@ -265,21 +356,33 @@ export default function PRDMentorDashboard() {
             />
           </div>
           <div className="w-[40%] h-full overflow-hidden">
-            <PRDPreview prdData={prdData} />
+            <PRDPreview prdData={prdData} activePhase={activePhase} />
           </div>
         </div>
 
         <div className="block md:hidden h-full">
-          <Tabs defaultValue="chat" className="flex flex-col h-full">
-            <TabsList className="grid w-full grid-cols-2 rounded-none border-b bg-white shrink-0 h-12">
-              <TabsTrigger value="chat">Obrolan RDG</TabsTrigger>
-              <TabsTrigger value="prd">Draft Dokumen</TabsTrigger>
+          <Tabs value={activeMobileTab} onValueChange={setActiveMobileTab} className="flex flex-col h-full">
+            <TabsList className="grid w-full grid-cols-2 rounded-none border-b bg-white shrink-0 h-12 p-0 gap-0">
+              <TabsTrigger
+                value="chat"
+                className="h-full rounded-none border-b-2 border-transparent text-slate-500 font-semibold text-xs transition-all
+                  data-[state=active]:border-emerald-500 data-[state=active]:text-emerald-700 data-[state=active]:bg-emerald-50"
+              >
+                💬 Obrolan RDG
+              </TabsTrigger>
+              <TabsTrigger
+                value="prd"
+                className="h-full rounded-none border-b-2 border-transparent text-slate-500 font-semibold text-xs transition-all
+                  data-[state=active]:border-blue-500 data-[state=active]:text-blue-700 data-[state=active]:bg-blue-50"
+              >
+                📄 Draft Dokumen
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="chat" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
               <ChatInterface messages={messages} setMessages={setMessages} prdData={prdData} setPrdData={setPrdData} activePhase={activePhase} />
             </TabsContent>
             <TabsContent value="prd" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-              <PRDPreview prdData={prdData} />
+              <PRDPreview prdData={prdData} activePhase={activePhase} />
             </TabsContent>
           </Tabs>
         </div>
@@ -346,8 +449,19 @@ function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase
     }
   };
 
+  const currentPhaseData = PHASES.find(p => p.id === activePhase)!;
+
   return (
     <div className="flex h-full flex-col overflow-hidden relative">
+
+      {/* === LABEL FASE AKTIF DI KOLOM CHAT === */}
+      <div className="shrink-0 flex items-center justify-center gap-2 py-2 bg-gradient-to-r from-emerald-50 via-white to-emerald-50 border-b border-emerald-100">
+        <div className="flex items-center gap-2 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm">
+          <span>FASE {currentPhaseData.id}: {currentPhaseData.n.toUpperCase()}</span>
+        </div>
+        <span className="text-[10px] text-slate-400 hidden sm:inline">{currentPhaseData.desc}</span>
+      </div>
+
       <div
         ref={chatContainerRef}
         onScroll={handleScroll}
@@ -377,7 +491,7 @@ function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase
       </div>
 
       {showScrollTop && (
-        <Button onClick={scrollToTop} size="icon" className="absolute bottom-24 right-6 h-10 w-10 rounded-full shadow-xl bg-slate-800 hover:bg-slate-700 text-white z-20 transition-all opacity-90">
+        <Button onClick={scrollToTop} size="icon" className="absolute bottom-40 right-4 h-10 w-10 rounded-full shadow-xl bg-slate-800 hover:bg-slate-700 text-white z-20 transition-all opacity-90">
           <ArrowUp size={20} />
         </Button>
       )}
@@ -424,12 +538,39 @@ function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase
 }
 
 // --- SUB-KOMPONEN: PREVIEW DOKUMEN ---
-function PRDPreview({ prdData }: { prdData: any }) {
+function PRDPreview({ prdData, activePhase }: { prdData: any, activePhase: number }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => setShowScrollTop(e.currentTarget.scrollTop > 200);
   const scrollToTop = () => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Scroll otomatis ke section saat activePhase berubah
+  useEffect(() => {
+    if (!activePhase) return;
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) return;
+
+    // Beri sedikit jeda agar DOM tersinkron setelah state berubah
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`prd-section-${activePhase}`);
+      if (!el) return;
+
+      // Hitung posisi absolut elemen relatif terhadap scroll container
+      // dengan cara menelusuri DOM ke atas (offsetParent)
+      let absoluteOffsetTop = 0;
+      let current: HTMLElement | null = el;
+      while (current && current !== scrollContainer) {
+        absoluteOffsetTop += current.offsetTop;
+        current = current.offsetParent as HTMLElement | null;
+      }
+
+      // Scroll ke posisi tersebut, dikurangi 70px untuk clearance sticky header
+      scrollContainer.scrollTo({ top: absoluteOffsetTop - 70, behavior: 'smooth' });
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [activePhase]);
 
   return (
     <div className="relative h-full w-full overflow-hidden flex flex-col bg-slate-100/50">
@@ -467,7 +608,7 @@ function PRDPreview({ prdData }: { prdData: any }) {
 
             <div className="space-y-12">
               {prdData.sections.map((section: any) => (
-                <section key={section.id} className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <section id={`prd-section-${section.id}`} key={section.id} className={`scroll-mt-24 animate-in fade-in slide-in-from-bottom-2 duration-500 rounded-2xl transition-all ${activePhase.toString() === section.id ? 'ring-2 ring-emerald-400 ring-offset-4 ring-offset-white' : ''}`}>
                   <h3 className="text-[11px] font-bold text-emerald-600 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200"></span>
                     {section.title}

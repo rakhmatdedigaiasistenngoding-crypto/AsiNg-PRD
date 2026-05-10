@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#059669" />
+  
+  <!-- Document Silhouette -->
+  <path d="M176 112h112l80 80v208a24 24 0 0 1-24 24H176a24 24 0 0 1-24-24V136a24 24 0 0 1 24-24z" fill="#ffffff" />
+  
+  <!-- Folded Corner -->
+  <path d="M288 112v80h80L288 112z" fill="#e2e8f0" />
+  
+  <!-- Abstract Code / AI Lines -->
+  <rect x="208" y="240" width="112" height="20" rx="10" fill="#10b981" />
+  <rect x="208" y="296" width="72" height="20" rx="10" fill="#34d399" />
+  <rect x="208" y="352" width="96" height="20" rx="10" fill="#6ee7b7" />
+  
+  <!-- Sparkles / AI Magic -->
+  <path d="M256 140l8 24 24 8-24 8-8 24-8-24-24-8 24-8z" fill="#059669" />
+  <path d="M210 180l6 18 18 6-18 6-6 18-6-18-18-6 18-6z" fill="#10b981" />
+</svg>
