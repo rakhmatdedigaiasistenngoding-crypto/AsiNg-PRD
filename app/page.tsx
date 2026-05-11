@@ -17,7 +17,17 @@ import {
   Save,
   ChevronDown,
   Menu,
-  X
+  X,
+  Info,
+  CheckCircle2,
+  BookOpen,
+  Sparkles,
+  Target,
+  Users,
+  BarChart3,
+  Shield,
+  MonitorSmartphone,
+  Smartphone
 } from "lucide-react"
 import jsPDF from "jspdf"
 
@@ -43,6 +53,9 @@ function FormattedMessage({ text }: { text: string }) {
   );
 }
 
+// --- KONSTANTA VERSI APLIKASI ---
+const APP_VERSION = "1.2";
+
 // --- KOMPONEN UTAMA DASHBOARD ---
 const PHASES = [
   { id: 1, n: "Discovery", desc: "Temukan akar masalah & peluang" },
@@ -55,10 +68,13 @@ export default function PRDMentorDashboard() {
   const [activePhase, setActivePhase] = useState(1);
   const [phaseMenuOpen, setPhaseMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState("chat");
   const [messages, setMessages] = useState([
     { role: "ai", text: "Halo! Saya **RDG**, mentor digital Anda.\n\nSebelum kita bedah ide hebat Anda, boleh saya tahu nama Anda siapa?" }
   ]);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
 
   const [prdData, setPrdData] = useState({
     userName: "",
@@ -67,9 +83,9 @@ export default function PRDMentorDashboard() {
     label: "DRAFTING",
     sections: [
       { id: "1", title: "1. Executive Summary", items: [{ label: "Problem Statement", value: "TBD" }, { label: "Proposed Solution", value: "TBD" }, { label: "Success Criteria", value: "TBD" }] },
-      { id: "2", title: "2. User Experience", items: [{ label: "Calon Pengguna", value: "TBD" }, { label: "User Stories", value: "TBD" }] },
-      { id: "3", title: "3. Technical Architecture", items: [{ label: "Tech Stack / Tools", value: "TBD" }, { label: "Data Flow", value: "TBD" }] },
-      { id: "4", title: "4. Risks & Roadmap", items: [{ label: "MVP Timeline", value: "TBD" }, { label: "Potential Risks", value: "TBD" }] }
+      { id: "2", title: "2. User Experience & Functionality", items: [{ label: "Calon Pengguna", value: "TBD" }, { label: "User Stories", value: "TBD" }, { label: "Acceptance Criteria", value: "TBD" }, { label: "Non-Goals", value: "TBD" }] },
+      { id: "3", title: "3. Technical Architecture", items: [{ label: "Tech Stack / Tools", value: "TBD" }, { label: "Data Flow", value: "TBD" }, { label: "Security & Privacy", value: "TBD" }, { label: "AI System Requirements", value: "TBD" }] },
+      { id: "4", title: "4. Risks & Roadmap", items: [{ label: "MVP Timeline", value: "TBD" }, { label: "Phased Rollout", value: "TBD" }, { label: "Potential Risks", value: "TBD" }] }
     ]
   });
 
@@ -91,6 +107,30 @@ export default function PRDMentorDashboard() {
     const stateToSave = { messages, prdData, activePhase };
     localStorage.setItem("rdg_app_state", JSON.stringify(stateToSave));
   }, [messages, prdData, activePhase]);
+
+  // --- LOGIKA PWA INSTALLATION ---
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    
+    // Deteksi iOS
+    const isIPhone = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    setIsIOS(isIPhone);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   // 2. FUNGSI RESET (MULAI BARU)
   const handleReset = () => {
@@ -227,7 +267,7 @@ export default function PRDMentorDashboard() {
   return (
     <div className="flex h-screen w-full flex-col bg-slate-50 text-slate-900 overflow-hidden">
       <header className="flex items-center justify-between border-b bg-white px-4 sm:px-6 py-3 shrink-0 z-20 shadow-sm">
-        <div className="flex items-center gap-2 font-bold text-emerald-600">
+        <button onClick={() => setShowAboutModal(true)} className="flex items-center gap-2 font-bold text-emerald-600 hover:opacity-80 transition-opacity cursor-pointer" title="Tentang Aplikasi">
           <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-sm">
             <FileText size={18} />
           </div>
@@ -235,7 +275,7 @@ export default function PRDMentorDashboard() {
             <span className="hidden sm:inline">AI PRD Mentor</span>
             <span className="hidden sm:inline text-[10px] font-medium text-slate-400">by Rakhmat Dedi G</span>
           </div>
-        </div>
+        </button>
 
         {/* === NAVIGASI FASE: DROPDOWN di mobile, INLINE di desktop === */}
         <div className="relative">
@@ -290,17 +330,17 @@ export default function PRDMentorDashboard() {
           {/* ====== DESKTOP: Tombol individual ====== */}
           <input type="file" accept=".json" ref={fileInputRef} onChange={handleImportProject} className="hidden" />
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} title="Import Data (.json)" className="hidden md:flex border-slate-200 gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-            <Upload size={14} /> Import
+            <Upload size={14} /> <span className="hidden lg:inline">Import</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handleBackupProject} title="Backup Data (.json)" className="hidden md:flex border-slate-200 gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50">
-            <Save size={14} /> Backup
+            <Save size={14} /> <span className="hidden lg:inline">Backup</span>
           </Button>
           <div className="w-px h-6 bg-slate-200 hidden md:block mx-1"></div>
-          <Button variant="outline" size="sm" onClick={handleExportMarkdown} title="Export Markdown" className="hidden lg:flex border-slate-200 gap-1">
-            <FileJson size={14} /> .MD
+          <Button variant="outline" size="sm" onClick={handleExportMarkdown} title="Export Markdown" className="hidden md:flex border-slate-200 gap-1">
+            <FileJson size={14} /> <span className="hidden lg:inline">.MD</span>
           </Button>
           <Button variant="default" size="sm" onClick={handleExportPDF} className="bg-emerald-600 hover:bg-emerald-700 gap-2 shadow-sm hidden md:flex">
-            <Download size={14} /> <span>Export PDF</span>
+            <Download size={14} /> <span className="hidden lg:inline">Export PDF</span>
           </Button>
 
           {/* ====== MOBILE: Hamburger Menu ====== */}
@@ -346,6 +386,149 @@ export default function PRDMentorDashboard() {
 
         </div>
       </header>
+
+      {/* === MODAL TENTANG APLIKASI === */}
+      {showAboutModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAboutModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Header modal */}
+            <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 px-6 py-8 rounded-t-3xl text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-12 w-12 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center shadow-lg">
+                    <FileText size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black tracking-tight">AI PRD Mentor</h2>
+                    <p className="text-emerald-100 text-xs font-medium">by Rakhmat Dedi G</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-4">
+                  <span className="bg-white/20 backdrop-blur text-xs font-bold px-3 py-1 rounded-full">Versi {APP_VERSION}</span>
+                  <span className="bg-white/10 text-xs px-3 py-1 rounded-full">Sistem Edukasi Interaktif</span>
+                </div>
+
+                {/* --- TOMBOL INSTALASI PWA (OPSI A) --- */}
+                {deferredPrompt && (
+                  <button 
+                    onClick={handleInstallClick}
+                    className="mt-6 w-full flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold py-3.5 px-6 rounded-2xl shadow-xl hover:bg-emerald-50 transition-all active:scale-95 group"
+                  >
+                    <div className="bg-emerald-100 p-2 rounded-xl group-hover:rotate-12 transition-transform">
+                      <MonitorSmartphone size={24} />
+                    </div>
+                    <div className="text-left leading-tight">
+                      <p className="text-sm">Instal di Perangkat</p>
+                      <p className="text-[10px] text-emerald-500/70 font-medium">Akses lebih cepat & lancar</p>
+                    </div>
+                  </button>
+                )}
+
+                {/* PANDUAN MANUAL UNTUK iOS */}
+                {isIOS && !deferredPrompt && (
+                  <div className="mt-6 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 flex items-start gap-3">
+                    <div className="bg-white/20 p-2 rounded-xl shrink-0">
+                      <Smartphone size={20} />
+                    </div>
+                    <div className="text-[11px] leading-relaxed">
+                      <p className="font-bold mb-1">Pasang di iPhone/iPad:</p>
+                      <ol className="list-decimal list-inside space-y-1 text-white/80">
+                        <li>Klik ikon <b>Share</b> di bawah Safari</li>
+                        <li>Pilih <b>'Add to Home Screen'</b></li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Konten modal */}
+            <div className="px-6 py-6 space-y-6">
+              {/* Deskripsi Singkat */}
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+                <p className="text-sm text-slate-700 leading-relaxed">
+                  <strong>AI PRD Mentor</strong> adalah platform edukasi interaktif berbasis AI yang membimbing Anda menyusun dokumen spesifikasi proyek berkualitas tinggi.
+                  Bukan sekadar alat pengisi formulir — sistem ini dirancang untuk <strong>membangun kemandirian berpikir</strong> Anda sebagai pemilik produk.
+                </p>
+              </div>
+
+              {/* Apa itu PRD */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <BookOpen size={16} className="text-emerald-600" />
+                  <h3 className="font-bold text-slate-800 text-sm">Apa itu PRD?</h3>
+                </div>
+                <div className="bg-slate-50 rounded-2xl p-4 space-y-3 text-xs text-slate-600 leading-relaxed">
+                  <p>
+                    <strong>PRD (Product Requirements Document)</strong> adalah dokumen strategis yang mendefinisikan <em>apa</em> yang akan dibangun, <em>untuk siapa</em>, dan <em>mengapa</em> — sebelum satu baris kode pun ditulis.
+                  </p>
+                  <p>
+                    PRD menjadi sumber kebenaran bagi seluruh tim: developer, desainer, hingga stakeholder.
+                    Dokumen ini memastikan semua orang bekerja dengan visi yang sama.
+                  </p>
+                </div>
+              </div>
+
+              {/* Manfaat PRD */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles size={16} className="text-emerald-600" />
+                  <h3 className="font-bold text-slate-800 text-sm">Mengapa PRD Penting?</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { icon: Target, title: "Fokus yang Jelas", desc: "Menghindari fitur yang tidak perlu dan scope creep" },
+                    { icon: Users, title: "Satu Visi Tim", desc: "Semua anggota tim memahami tujuan yang sama" },
+                    { icon: BarChart3, title: "Ukuran Sukses", desc: "Menetapkan KPI konkret sejak awal proyek" },
+                    { icon: Shield, title: "Mitigasi Risiko", desc: "Mengidentifikasi hambatan sebelum terlambat" }
+                  ].map((item, i) => (
+                    <div key={i} className="bg-slate-50 rounded-xl p-3 group hover:bg-emerald-50 transition-colors">
+                      <item.icon size={16} className="text-emerald-500 mb-1.5" />
+                      <p className="font-bold text-[11px] text-slate-800">{item.title}</p>
+                      <p className="text-[10px] text-slate-500 leading-snug mt-0.5">{item.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fitur Aplikasi */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle2 size={16} className="text-emerald-600" />
+                  <h3 className="font-bold text-slate-800 text-sm">Fitur Unggulan</h3>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    "Mentor AI interaktif yang membimbing dengan teknik Socratic Questioning",
+                    "4 fase kerja terstruktur: Discovery → Analysis → Technical → Deliver",
+                    "Deteksi otomatis kata-kata ambigu & meminta ukuran konkret",
+                    "Live preview dokumen PRD yang diperbarui secara real-time",
+                    "Ekspor dokumen ke format PDF dan Markdown",
+                    "Backup & restore data proyek dalam format JSON",
+                    "Dapat diinstal di perangkat sebagai aplikasi (PWA)",
+                    "Responsif — nyaman digunakan di HP, tablet, maupun desktop"
+                  ].map((fitur, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                      <span className="text-emerald-500 mt-0.5 shrink-0">✓</span>
+                      <span>{fitur}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Footer modal */}
+              <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
+                <p className="text-[10px] text-slate-400">© 2026 Rakhmat Dedi G — Semua hak dilindungi</p>
+                <Button onClick={() => setShowAboutModal(false)} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-xs rounded-lg">
+                  Tutup
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 min-h-0 overflow-hidden relative">
         <div className="hidden md:flex h-full w-full">

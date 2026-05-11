@@ -19,8 +19,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "AI PRD Mentor",
-  description: "Your digital assistant for creating professional Product Requirement Documents",
+  description: "Sistem edukasi interaktif berbasis AI untuk menyusun dokumen spesifikasi proyek (PRD) berkualitas tinggi",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/icon.svg",
+    apple: "/icons/icon.svg",
+  },
 };
 
 export const viewport = {
@@ -37,7 +41,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="id"
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", notoSans.variable, playfairDisplayHeading.variable)}
     >
       <body className="min-h-full flex flex-col">{children}</body>
