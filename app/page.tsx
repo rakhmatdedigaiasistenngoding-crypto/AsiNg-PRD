@@ -13,7 +13,9 @@ import {
   Calendar,
   Trash2,
   FileJson,
-  Upload,
+  FolderOpen,
+  Clock,
+  RefreshCw,
   Save,
   ChevronDown,
   Menu,
@@ -27,7 +29,8 @@ import {
   BarChart3,
   Shield,
   MonitorSmartphone,
-  Smartphone
+  Smartphone,
+  AlertTriangle
 } from "lucide-react"
 import jsPDF from "jspdf"
 
@@ -53,8 +56,19 @@ function FormattedMessage({ text }: { text: string }) {
   );
 }
 
+// Helper untuk membersihkan tag formatting HTML/Markdown
+function stripFormatting(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\*\*<u>/g, '')
+    .replace(/<\/u>\*\*/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/<u>/g, '')
+    .replace(/<\/u>/g, '');
+}
+
 // --- KONSTANTA VERSI APLIKASI ---
-const APP_VERSION = "1.2";
+const APP_VERSION = "1.3";
 
 // --- KOMPONEN UTAMA DASHBOARD ---
 const PHASES = [
@@ -75,10 +89,17 @@ export default function PRDMentorDashboard() {
   ]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [isVIP, setIsVIP] = useState(false);
+
+  // STATE UNTUK HIERARCHICAL SUMMARIZATION
+  const [chunkList, setChunkList] = useState<string[]>([]);
+  const [masterSummary, setMasterSummary] = useState<string>("");
 
   const [prdData, setPrdData] = useState({
     userName: "",
     creationDate: "",
+    lastUpdated: "",
     title: "Proyek Belum Berjudul",
     label: "DRAFTING",
     sections: [
@@ -100,13 +121,16 @@ export default function PRDMentorDashboard() {
       if (parsed.messages) setMessages(parsed.messages);
       if (parsed.prdData) setPrdData(parsed.prdData);
       if (parsed.activePhase) setActivePhase(parsed.activePhase);
+      if (parsed.isVIP) setIsVIP(parsed.isVIP);
+      if (parsed.chunkList) setChunkList(parsed.chunkList);
+      if (parsed.masterSummary) setMasterSummary(parsed.masterSummary);
     }
   }, []);
 
   useEffect(() => {
-    const stateToSave = { messages, prdData, activePhase };
+    const stateToSave = { messages, prdData, activePhase, isVIP, chunkList, masterSummary };
     localStorage.setItem("rdg_app_state", JSON.stringify(stateToSave));
-  }, [messages, prdData, activePhase]);
+  }, [messages, prdData, activePhase, isVIP, chunkList, masterSummary]);
 
   // --- LOGIKA PWA INSTALLATION ---
   useEffect(() => {
@@ -121,6 +145,24 @@ export default function PRDMentorDashboard() {
     setIsIOS(isIPhone);
 
     return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  // --- LOGIKA MENDETEKSI UPDATE PWA ---
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                setUpdateAvailable(true);
+              }
+            });
+          }
+        });
+      });
+    }
   }, []);
 
   const handleInstallClick = async () => {
@@ -144,12 +186,18 @@ export default function PRDMentorDashboard() {
   // FUNGSI BARU: BACKUP (EXPORT JSON) & RESTORE (IMPORT JSON)
   // --------------------------------------------------------
   const handleBackupProject = () => {
-    const stateToSave = { messages, prdData, activePhase };
+    // stateToSave menyimpan prdData apa adanya (lastUpdated tidak diubah menjadi hari ini secara paksa)
+    const stateToSave = { messages, prdData, activePhase, isVIP, chunkList, masterSummary };
+    
     const blob = new Blob([JSON.stringify(stateToSave, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `RDG_Backup_${prdData.title.replace(/\s+/g, '_')}.json`;
+    
+    // Format tanggal untuk nama file: DD-MM-YYYY (Tanggal backup dilakukan)
+    const dateFileStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const safeUserName = prdData.userName ? prdData.userName.replace(/\s+/g, '_') : 'Anonim';
+    link.download = `Backup_${dateFileStr}_${safeUserName}_${prdData.title.replace(/\s+/g, '_')}.json`;
     link.click();
   };
 
@@ -168,6 +216,7 @@ export default function PRDMentorDashboard() {
           setMessages(parsed.messages);
           setPrdData(parsed.prdData);
           if (parsed.activePhase) setActivePhase(parsed.activePhase);
+          if (parsed.isVIP !== undefined) setIsVIP(parsed.isVIP);
           alert("Data berhasil dipulihkan! Selamat melanjutkan proyek Anda.");
         } else {
           alert("Format file tidak dikenali. Pastikan ini adalah file Backup (.json) dari RDG.");
@@ -199,8 +248,13 @@ export default function PRDMentorDashboard() {
     cursorY += 6;
     doc.text(`Penulis      : ${prdData.userName || "Anonim"}`, margin, cursorY);
     cursorY += 6;
-    doc.text(`Tanggal      : ${prdData.creationDate || "-"}`, margin, cursorY);
-    cursorY += 10;
+    doc.text(`Tgl Dibuat   : ${prdData.creationDate || "-"}`, margin, cursorY);
+    cursorY += 6;
+    if (prdData.lastUpdated && prdData.lastUpdated !== prdData.creationDate) {
+      doc.text(`Tgl Update   : ${prdData.lastUpdated}`, margin, cursorY);
+      cursorY += 6;
+    }
+    cursorY += 4;
 
     doc.setDrawColor(200);
     doc.line(margin, cursorY, 190, cursorY);
@@ -236,7 +290,10 @@ export default function PRDMentorDashboard() {
   const handleExportMarkdown = () => {
     let content = `# ${prdData.title}\n\n`;
     content += `**Penulis:** ${prdData.userName}\n`;
-    content += `**Tanggal:** ${prdData.creationDate}\n`;
+    content += `**Tanggal Dibuat:** ${prdData.creationDate}\n`;
+    if (prdData.lastUpdated && prdData.lastUpdated !== prdData.creationDate) {
+      content += `**Terakhir Diperbarui:** ${prdData.lastUpdated}\n`;
+    }
     content += `**Tipe:** ${prdData.label}\n\n---\n\n`;
 
     prdData.sections.forEach(s => {
@@ -266,14 +323,32 @@ export default function PRDMentorDashboard() {
 
   return (
     <div className="flex h-screen w-full flex-col bg-slate-50 text-slate-900 overflow-hidden">
+      {/* BANNER NOTIFIKASI UPDATE PWA */}
+      {updateAvailable && (
+        <div className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between shrink-0 z-50">
+          <div className="flex items-center gap-2">
+            <RefreshCw size={16} className="animate-spin" />
+            <p className="text-sm font-medium">Pembaruan sistem tersedia! Refresh untuk versi terbaru.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button size="sm" onClick={() => window.location.reload()} className="bg-white text-emerald-700 hover:bg-emerald-50 h-8 text-xs font-bold px-4">
+              Refresh Sekarang
+            </Button>
+            <button onClick={() => setUpdateAvailable(false)} className="text-emerald-200 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+      
       <header className="flex items-center justify-between border-b bg-white px-4 sm:px-6 py-3 shrink-0 z-20 shadow-sm">
-        <button onClick={() => setShowAboutModal(true)} className="flex items-center gap-2 font-bold text-emerald-600 hover:opacity-80 transition-opacity cursor-pointer" title="Tentang Aplikasi">
-          <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-sm">
+        <button onClick={() => setShowAboutModal(true)} className={`flex items-center gap-2 font-bold hover:opacity-80 transition-opacity cursor-pointer ${isVIP ? 'text-amber-500' : 'text-emerald-600'}`} title="Tentang Aplikasi">
+          <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-white shadow-sm ${isVIP ? 'bg-gradient-to-br from-amber-400 to-yellow-600' : 'bg-emerald-600'}`}>
             <FileText size={18} />
           </div>
-          <div className="flex flex-col leading-tight">
+          <div className="flex flex-col text-left leading-tight">
             <span className="hidden sm:inline">AI PRD Mentor</span>
-            <span className="hidden sm:inline text-[10px] font-medium text-slate-400">by Rakhmat Dedi G</span>
+            <span className={`hidden sm:inline text-[10px] font-medium ${isVIP ? 'text-amber-500' : 'text-slate-400'}`}>by Rakhmat Dedi G</span>
           </div>
         </button>
 
@@ -330,7 +405,7 @@ export default function PRDMentorDashboard() {
           {/* ====== DESKTOP: Tombol individual ====== */}
           <input type="file" accept=".json" ref={fileInputRef} onChange={handleImportProject} className="hidden" />
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} title="Import Data (.json)" className="hidden md:flex border-slate-200 gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-            <Upload size={14} /> <span className="hidden lg:inline">Import</span>
+            <FolderOpen size={14} /> <span className="hidden lg:inline">Import</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handleBackupProject} title="Backup Data (.json)" className="hidden md:flex border-slate-200 gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50">
             <Save size={14} /> <span className="hidden lg:inline">Backup</span>
@@ -359,7 +434,7 @@ export default function PRDMentorDashboard() {
                   onClick={() => { fileInputRef.current?.click(); setMobileMenuOpen(false); }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-xs text-blue-600 hover:bg-blue-50 transition-colors"
                 >
-                  <Upload size={14} /> Import Data (.json)
+                  <FolderOpen size={14} /> Import Data (.json)
                 </button>
                 <button
                   onClick={() => { handleBackupProject(); setMobileMenuOpen(false); }}
@@ -539,6 +614,12 @@ export default function PRDMentorDashboard() {
               prdData={prdData}
               setPrdData={setPrdData}
               activePhase={activePhase}
+              setIsVIP={setIsVIP}
+              isVIP={isVIP}
+              chunkList={chunkList}
+              setChunkList={setChunkList}
+              masterSummary={masterSummary}
+              setMasterSummary={setMasterSummary}
             />
           </div>
           <div className="w-[40%] h-full overflow-hidden">
@@ -565,7 +646,7 @@ export default function PRDMentorDashboard() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="chat" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
-              <ChatInterface messages={messages} setMessages={setMessages} prdData={prdData} setPrdData={setPrdData} activePhase={activePhase} />
+              <ChatInterface messages={messages} setMessages={setMessages} prdData={prdData} setPrdData={setPrdData} activePhase={activePhase} setIsVIP={setIsVIP} isVIP={isVIP} chunkList={chunkList} setChunkList={setChunkList} masterSummary={masterSummary} setMasterSummary={setMasterSummary} />
             </TabsContent>
             <TabsContent value="prd" className="flex-1 min-h-0 overflow-hidden m-0 p-0">
               <PRDPreview prdData={prdData} activePhase={activePhase} />
@@ -578,10 +659,11 @@ export default function PRDMentorDashboard() {
 }
 
 // --- SUB-KOMPONEN: CHAT INTERFACE ---
-function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase }: any) {
+function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase, setIsVIP, isVIP, chunkList, setChunkList, masterSummary, setMasterSummary }: any) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [sendErrorNotice, setSendErrorNotice] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -595,12 +677,15 @@ function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
+    const savedInput = input; // Simpan sebelum dikosongkan
+    setSendErrorNotice("");
     const newMessages = [...messages, { role: "user", text: input }];
     setMessages(newMessages);
     setInput("");
     setIsLoading(true);
 
     try {
+      const latestChunkSummary = chunkList.length > 0 ? chunkList[chunkList.length - 1] : "";
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -608,28 +693,101 @@ function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase
           history: newMessages,
           phase: activePhase,
           document: prdData,
-          userName: prdData.userName
+          userName: prdData.userName,
+          latestChunkSummary: latestChunkSummary,
+          masterSummary: masterSummary
         })
       });
 
       if (!response.ok) throw new Error();
 
       const data = await response.json();
-      setMessages([...newMessages, { role: "ai", text: data.reply }]);
+      const aiReply = data.reply;
+      const updatedMessages = [...newMessages, { role: "ai", text: aiReply }];
+      setMessages(updatedMessages);
 
       if (data.document) {
+        // Bersihkan formatting (seperti **<u>...</u>**) dari seluruh string di dalam JSON
+        const cleanedDocument = JSON.parse(JSON.stringify(data.document), (key, value) => {
+          if (typeof value === 'string') {
+            return stripFormatting(value);
+          }
+          return value;
+        });
+
         setPrdData((prev: any) => {
-          const merged = { ...prev, ...data.document };
+          const merged = { ...prev, ...cleanedDocument };
+          const nowStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
           if (merged.userName && !prev.creationDate) {
-            merged.creationDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            merged.creationDate = nowStr;
           } else {
             merged.creationDate = prev.creationDate;
+          }
+          if (merged.userName) {
+            merged.lastUpdated = nowStr;
           }
           return merged;
         });
       }
+
+      setSendErrorNotice("");
+
+      // Aktifkan mode VIP jika divalidasi oleh backend
+      if (data.isVIP) {
+        setIsVIP(true);
+      }
+
+      // --- BACKGROUND PROCESSING UNTUK SUMMARIZATION ---
+      const totalMessages = updatedMessages.length;
+      // Picu summarization setiap 15 pesan (user + model)
+      if (totalMessages > 0 && totalMessages % 15 === 0) {
+        // Ambil 15 pesan terakhir
+        const msgsToSummarize = updatedMessages.slice(-15);
+        
+        // Panggil endpoint /api/summarize secara asynchronous (tanpa await agar tidak memblokir UI)
+        fetch('/api/summarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'chunk', data: msgsToSummarize })
+        })
+        .then(res => res.json())
+        .then(summaryData => {
+          if (summaryData.summary) {
+            setChunkList((prevList: string[]) => {
+              // Simpan maksimal 5 rangkuman terakhir saja agar localStorage tidak membengkak
+              const newList = [...prevList, summaryData.summary].slice(-5);
+              
+              // Jika sudah terkumpul 5 chunk summary, buat master summary baru
+              if (newList.length > 0 && newList.length % 5 === 0) {
+                // Ambil 5 terakhir
+                const chunksForMaster = newList.slice(-5);
+                fetch('/api/summarize', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ type: 'master', data: chunksForMaster, oldMaster: masterSummary })
+                })
+                .then(r => r.json())
+                .then(masterData => {
+                  if (masterData.summary) {
+                    setMasterSummary(masterData.summary);
+                  }
+                }).catch(e => console.error("Master Summary error:", e));
+              }
+              return newList;
+            });
+          }
+        }).catch(e => console.error("Chunk Summary error:", e));
+      }
+
+
     } catch (error) {
-      setMessages([...newMessages, { role: "ai", text: "Gagal terhubung ke RDG. Cek koneksi internet Anda." }]);
+      // Kembalikan pesan ke kotak input & hapus dari riwayat agar user bisa kirim ulang
+      setMessages(messages); // Pulihkan ke state sebelum pesan dikirim
+      setInput(savedInput);  // Kembalikan teks ke kotak input
+      setSendErrorNotice("Pesan gagal terkirim. Teks sudah dikembalikan ke kotak input, silakan kirim ulang.");
+      setTimeout(() => {
+        setSendErrorNotice("");
+      }, 4000);
     } finally {
       setIsLoading(false);
     }
@@ -696,20 +854,20 @@ function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase
               }}
               disabled={isLoading}
               placeholder={isLoading ? "RDG sedang meracik ide..." : "Ketik ide atau jawaban Anda..."}
-              className="w-full resize-none bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-5 pr-14 text-sm leading-relaxed focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all shadow-inner-sm min-h-[58px] max-h-[180px] overflow-y-auto"
-              rows={1}
+              className="w-full resize-none bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-5 pr-14 text-sm leading-relaxed focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all shadow-inner-sm min-h-[80px] max-h-[200px] overflow-y-auto"
+              rows={2}
               onInput={(e: any) => {
-                e.target.style.height = '58px';
+                e.target.style.height = '80px';
                 e.target.style.height = e.target.scrollHeight + 'px';
               }}
             />
-            <div className="absolute right-2 bottom-2">
-              <Button onClick={handleSendMessage} disabled={isLoading || !input.trim()} size="icon" className="bg-emerald-600 hover:bg-emerald-700 h-[42px] w-[42px] rounded-xl shadow-md transition-all active:scale-90 disabled:opacity-50">
-                <Send size={18} className="ml-0.5" />
+            <div className="absolute right-3 bottom-3">
+              <Button onClick={handleSendMessage} disabled={isLoading || !input.trim()} size="icon" className="bg-emerald-600 hover:bg-emerald-700 h-[46px] w-[46px] rounded-xl shadow-md transition-all active:scale-90 disabled:opacity-50">
+                <Send size={20} className="ml-0.5" />
               </Button>
             </div>
           </div>
-          <div className="flex justify-between items-center mt-2 px-1">
+          <div className="flex justify-between items-center mt-3 px-2">
             <p className="text-[10px] text-slate-400">
               Tekan <b>Enter</b> untuk baris baru. Tekan <b>Ctrl+Enter</b> untuk mengirim.
             </p>
@@ -717,6 +875,18 @@ function ChatInterface({ messages, setMessages, prdData, setPrdData, activePhase
               {input.length} karakter
             </p>
           </div>
+          {sendErrorNotice && (
+            <div
+              className={`mt-2 mx-2 rounded-lg px-3 py-2 text-[11px] flex items-start gap-2 border ${
+                isVIP
+                  ? "border-amber-400 bg-amber-100 text-amber-900"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+              }`}
+            >
+              <AlertTriangle size={14} className={`mt-0.5 shrink-0 ${isVIP ? "text-amber-800" : "text-amber-600"}`} />
+              <span>{sendErrorNotice}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -781,9 +951,17 @@ function PRDPreview({ prdData, activePhase }: { prdData: any, activePhase: numbe
                   <span className="text-[10px] font-bold uppercase tracking-widest">Penulis Dokumen</span>
                 </div>
                 <p className="text-xl font-bold text-slate-800 leading-tight">{prdData.userName}</p>
-                <div className="flex items-center gap-2 text-slate-400 pt-1">
-                  <Calendar size={12} />
-                  <span className="text-[10px] font-medium">{prdData.creationDate}</span>
+                <div className="flex flex-col gap-1 pt-2">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <Calendar size={12} />
+                    <span className="text-[10px] font-medium">Dibuat: {prdData.creationDate || "-"}</span>
+                  </div>
+                  {prdData.lastUpdated && prdData.lastUpdated !== prdData.creationDate && (
+                    <div className="flex items-center gap-2 text-emerald-600">
+                      <Clock size={12} />
+                      <span className="text-[10px] font-medium">Diperbarui: {prdData.lastUpdated}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
